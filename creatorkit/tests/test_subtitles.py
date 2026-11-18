@@ -67,6 +67,11 @@ def test_parse_srt():
     assert [(s.start, s.end, s.text) for s in segs] == [(1.0, 2.5, '你好 世界'), (3.0, 4.0, '再见')]
 
 
+def test_music_symbols_removed():
+    srt = '1\n00:00:00,000 --> 00:00:01,000\n♪ ♪\n\n2\n00:00:01,000 --> 00:00:02,000\n♪ 点击即玩 ♪\n'
+    assert [s.text for s in parse_srt_or_vtt(srt)] == ['点击即玩']
+
+
 def test_parse_rolling_vtt_dedupes():
     vtt = """WEBVTT
 Kind: captions

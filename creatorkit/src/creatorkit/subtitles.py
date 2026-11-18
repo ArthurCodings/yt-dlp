@@ -116,6 +116,7 @@ def _ts(value: str) -> float:
 def _clean(text: str) -> str:
     text = _TAG.sub('', text)
     text = html.unescape(text).replace('​', '')
+    text = re.sub(r'[♪♫♬]+', ' ', text)  # 音乐符号（B 站 AI 字幕、YouTube 自动字幕常见）
     return re.sub(r'[ \t]+', ' ', text).strip()
 
 

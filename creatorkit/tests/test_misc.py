@@ -71,6 +71,15 @@ def test_find_media(tmp_path: Path):
     assert _find_media(tmp_path, 'audio') is None
 
 
+def test_probe_requests_subtitles(tmp_path: Path):
+    from creatorkit.config import Config
+    from creatorkit.pipeline import Pipeline
+    p = Pipeline(Config(output_dir=str(tmp_path), max_items=5))._probe_params()
+    # 否则 B 站等“懒加载字幕”的提取器在解析阶段不会返回字幕
+    assert p['writesubtitles'] and p['writeautomaticsub'] and p['skip_download']
+    assert p['playlistend'] == 5
+
+
 def test_browser_spec():
     assert parse_browser_spec('Firefox') == ('firefox', None, None, None)
     assert parse_browser_spec('chrome:Profile 1') == ('chrome', 'Profile 1', None, None)

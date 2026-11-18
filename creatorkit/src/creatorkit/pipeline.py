@@ -112,10 +112,21 @@ class Pipeline:
             results.extend(self.process_url(url))
         return results
 
-    def process_url(self, url: str) -> list[ItemResult]:
-        params = {**self._base_params(), 'extract_flat': 'in_playlist', 'skip_download': True}
+    def _probe_params(self) -> dict:
+        params = {
+            **self._base_params(),
+            'extract_flat': 'in_playlist',
+            'skip_download': True,
+            # B 站等提取器只有在“要字幕”时才会去取字幕列表（download=False 不会写任何文件）
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+        }
         if self.cfg.max_items:
             params['playlistend'] = self.cfg.max_items
+        return params
+
+    def process_url(self, url: str) -> list[ItemResult]:
+        params = self._probe_params()
         self.log(f'\n▶ 解析 {url}')
         try:
             with YoutubeDL(params) as probe:
