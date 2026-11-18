@@ -18,6 +18,21 @@ def test_textconv():
     assert convert_segments([Segment(0, 1, '這個')], 'hans')[0].text == '这个'
 
 
+def test_cjk_punctuation():
+    from creatorkit.textconv import normalize_cjk_punct
+    assert normalize_cjk_punct('好,我们直接开始。真的吗?是的!') == '好，我们直接开始。真的吗？是的！'
+    assert normalize_cjk_punct('Hello, world: 1,000') == 'Hello, world: 1,000'
+    assert normalize_cjk_punct('原本的工作 台中市第四分局 LED背心') == '原本的工作，台中市第四分局 LED背心'
+    assert convert_segments([Segment(0, 1, '來了,我們')], 'keep')[0].text == '來了，我們'
+
+
+def test_asr_context():
+    from creatorkit.pipeline import asr_context
+    info = {'title': '《面容》一命速通！ #Steam游戏 #恐怖游戏', 'tags': ['恐怖游戏', '速通技巧']}
+    assert asr_context(info) == '《面容》一命速通！ Steam游戏 恐怖游戏 速通技巧'
+    assert asr_context({}) == ''
+
+
 def test_config_file_and_overrides(tmp_path: Path, monkeypatch):
     monkeypatch.delenv('CK_CONFIG', raising=False)
     monkeypatch.chdir(tmp_path)
@@ -86,7 +101,7 @@ def test_browser_spec():
 
 
 def test_error_hints():
-    assert 'cookies_from_browser' in _explain_error('ERROR: [Douyin] 1: Fresh cookies (not necessarily logged in) are needed')
+    assert 'douyin.txt' in _explain_error('ERROR: [Douyin] 1: Fresh cookies (not necessarily logged in) are needed')
 
 
 def test_cli_parser():

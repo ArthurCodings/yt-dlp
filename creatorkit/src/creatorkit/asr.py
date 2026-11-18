@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-from .subtitles import Segment, format_clock
+from .subtitles import Segment, format_clock, regroup_words
 
 _PROMPTS = {
     'hans': '以下是普通话内容的逐字稿，使用简体中文，并带有标点符号。',
@@ -87,7 +87,9 @@ class Transcriber:
                 self.log(f'  {dev} 加载失败：{e}')
         raise ASRUnavailable(f'语音识别模型加载失败：{last_err}')
 
-    def transcribe(self, media: Path, language: str | None = None, script: str = 'hans') -> tuple[list[Segment], str]:
+    def transcribe(self, media: Path, language: str | None = None, script: str = 'hans',
+                   context: str | None = None) -> tuple[list[Segment], str]:
+        """context：视频标题、标签等，作为提示词帮助识别专有名词。"""
         model = self._load()
         from faster_whisper import decode_audio
 
@@ -105,13 +107,22 @@ class Transcriber:
             'condition_on_previous_text': False,  # 减少长音频里的重复/幻听
         }
         if language in ('zh', 'yue'):
-            kwargs['initial_prompt'] = _PROMPTS.get(script, _PROMPTS['keep'])
+            style = _PROMPTS.get(script, _PROMPTS['keep'])
+            kwargs['initial_prompt'] = style
+            # hotwords 每个 30 秒窗口都会生效（initial_prompt 只作用于开头）：
+            # 放入风格提示 + 标题/标签里的专有名词，提升人名、游戏名、术语的识别率
+            kwargs['hotwords'] = (style + (context or ''))[:160]
+        elif context:
+            kwargs['hotwords'] = context[:160]
+        # 逐词时间戳：模型给出的分段有时长达一分钟，按词重新断句才能当字幕用
+        kwargs['word_timestamps'] = True
         segments_iter, _ = model.transcribe(audio, **kwargs)
         segments = []
         for s in segments_iter:
-            text = s.text.strip()
-            if text:
-                segments.append(Segment(s.start, s.end, text))
+            if s.words:
+                segments.extend(regroup_words([(w.start, w.end, w.word) for w in s.words]))
+            elif s.text.strip():
+                segments.append(Segment(s.start, s.end, s.text.strip()))
             if duration:
                 sys.stderr.write(f'\r  识别进度 {format_clock(s.end)} / {format_clock(duration)}'
                                  f'（{min(s.end / duration, 1):.0%}）')

@@ -115,6 +115,28 @@ def test_parse_subtitle_file_by_extension(tmp_path: Path):
     assert len(segs) == 1 and segs[0].end == 2.0
 
 
+def test_regroup_words():
+    from creatorkit.subtitles import regroup_words
+    chars = '来了宝子们，一款高难度恐怖游戏。好的我们直接开始吧这一段话特别长没有任何标点符号一直说下去'
+    words = [(i * 0.2, i * 0.2 + 0.2, ch) for i, ch in enumerate(chars)]
+    segs = regroup_words(words, max_len=10, max_dur=100)
+    assert [s.text for s in segs][:2] == ['来了宝子们，', '一款高难度恐怖游戏。']
+    assert all(len(s.text) <= 10 for s in segs[2:])
+    assert segs[0].start == 0 and segs[-1].end == pytest.approx(len(chars) * 0.2)
+    # 没有标点只能硬断：标记为延续，合并全文时不加逗号
+    assert segs[2].cont and not segs[-1].cont
+    assert to_plain_text(segs) == '来了宝子们，一款高难度恐怖游戏。好的我们直接开始吧这一段话特别长没有任何标点符号一直说下去。\n'
+    # Whisper 用空格代替逗号时，在空格处断开而不是把词切开
+    words3 = [(i, i + 1, w) for i, w in enumerate(['防', '疫', '期', '间', '警', '察', ' 原', '本', '的', '工', '作', ' 台', '中', '市'])]
+    assert [s.text for s in regroup_words(words3, max_len=8, max_dur=100)] == ['防疫期间警察', '原本的工作', '台中市']
+    # 超长时退回到最近的逗号断开
+    words2 = [(i, i + 1, ch) for i, ch in enumerate('一二三四，五六七八九十')]
+    assert [s.text for s in regroup_words(words2, max_len=8, max_dur=100)] == ['一二三四，', '五六七八九十']
+    # 英文：按半个字宽计算；超时强制断开
+    en = [(i, i + 1, w) for i, w in enumerate([' Hello', ' world.', ' This', ' is', ' long'])]
+    assert [s.text for s in regroup_words(en, max_dur=2.5)] == ['Hello world.', 'This is long']
+
+
 def test_to_srt():
     out = to_srt([Segment(0, 1.2345, 'a'), Segment(3661.5, 3662, 'b')])
     assert out == '1\n00:00:00,000 --> 00:00:01,234\na\n\n2\n01:01:01,500 --> 01:01:02,000\nb\n\n' or \

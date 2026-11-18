@@ -36,6 +36,10 @@ write_thumbnail = true   # 保存封面 cover.jpg
 # 用 Firefox 登录的话可以直接读取：
 # cookies_from_browser = "firefox"
 
+# 抖音：用本机 Chrome/Edge 打开视频页获取作品数据（需安装 creatorkit[browser]）
+douyin_browser = true
+browser_headless = true   # false 则显示浏览器窗口，遇到验证码时可手动完成
+
 # proxy = "http://127.0.0.1:7897"
 
 # 合集/频道一次最多处理多少条

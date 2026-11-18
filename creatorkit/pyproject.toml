@@ -17,6 +17,10 @@ dependencies = [
 asr = [
     "faster-whisper>=1.1.0",
 ]
+# 抖音：用本机 Chrome/Edge 打开页面获取作品数据
+browser = [
+    "playwright>=1.45",
+]
 # Windows/Linux + NVIDIA 显卡：装上后 faster-whisper 可直接用 GPU
 cuda = [
     "faster-whisper>=1.1.0",

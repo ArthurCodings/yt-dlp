@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import re
 
 from .subtitles import Segment
 
@@ -29,7 +30,16 @@ def convert_text(text: str, script: str) -> str:
     return _converter(script).convert(text)
 
 
+_CJK = r'[㐀-鿿豈-﫿]'
+_HALF_TO_FULL = {',': '，', '?': '？', '!': '！', ':': '：', ';': '；'}
+
+
+def normalize_cjk_punct(text: str) -> str:
+    """中文语境里的半角标点 → 全角（“好,我们” → “好，我们”），不影响英文和数字。"""
+    text = re.sub(rf'(?<={_CJK})([,?!:;])\s*', lambda m: _HALF_TO_FULL[m.group(1)], text)
+    # 中文之间的空格是 Whisper 用来表示停顿的，换成逗号
+    return re.sub(rf'(?<={_CJK})\s+(?={_CJK})', '，', text)
+
+
 def convert_segments(segments: list[Segment], script: str) -> list[Segment]:
-    if script == 'keep':
-        return segments
-    return [Segment(s.start, s.end, convert_text(s.text, script)) for s in segments]
+    return [Segment(s.start, s.end, normalize_cjk_punct(convert_text(s.text, script)), s.cont) for s in segments]

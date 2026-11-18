@@ -4,7 +4,7 @@
 
 - **全球站点**：yt-dlp 支持的上千个网站都能用——YouTube、B 站、抖音、TikTok、小红书、微博、Facebook、Instagram、X……
 - **文字优先用平台字幕**：有人工字幕就用人工字幕；其次用平台自动字幕（YouTube 原语言自动字幕、B 站 AI 字幕）。**不会**用“自动翻译”的字幕。
-- **没有字幕就本地语音识别**：faster-whisper + `large-v3-turbo`，有 NVIDIA 显卡自动用 GPU，全程离线，不上传任何内容。
+- **没有字幕就本地语音识别**：faster-whisper + `large-v3-turbo`，有 NVIDIA 显卡自动用 GPU，全程离线，不上传任何内容。会把视频标题和标签作为提示词，提高人名、游戏名等专有名词的准确率；按词级时间戳重新断句，字幕可直接导入剪映。
 - **简繁统一**：输出统一转成简体 / 台湾繁体 / 香港繁体（可关闭）。
 - **素材库**：每条视频一个文件夹，自动维护 `索引.md`，重复链接自动跳过。
 
@@ -47,6 +47,9 @@ ck get -f links.txt
 # 合集、频道、收藏夹：最多处理 20 条
 ck get --max 20 "https://www.youtube.com/@somechannel/videos"
 
+# 抖音遇到验证码：显示浏览器窗口，手动完成验证
+ck get --show-browser "https://www.douyin.com/video/xxxx"
+
 # 输出繁体（台湾用语）
 ck get --script hant URL
 
@@ -82,7 +85,7 @@ ck transcribe 录音.m4a 采访.mp4
 |---|---|
 | YouTube | 开箱即用。人工字幕 > 原语言自动字幕 > 语音识别。已装 deno 以支持新版 YouTube 签名。 |
 | B 站 | 开箱即用。CC 字幕和 AI 字幕通常**需要登录**才能拿到；不登录会自动转语音识别。登录后还有 1080P+。 |
-| 抖音 | **必须提供 cookie**（不登录也行，但要有浏览器访问过抖音产生的 cookie）。见下文。 |
+| 抖音 | 需要 **cookie（douyin.txt）+ 本机 Chrome 或 Edge**。抖音接口需要浏览器端签名，工具会在后台用你的 Chrome 带 cookie 打开视频页，读取页面自己加载的作品数据。遇到验证码时加 `--show-browser`，在弹出的窗口里手动完成。 |
 | TikTok / 小红书 / 微博 / IG / X | 公开内容一般直接可用；失败时先补 cookie。 |
 | 地区限制内容 | 配置 `proxy` 走对应地区的代理。 |
 
@@ -129,8 +132,10 @@ git merge upstream/master
 | 模块 | 作用 |
 |---|---|
 | `pipeline.py` | 主流程：解析 → 选字幕 → 下载 → 识别 → 写文件 → 更新索引 |
-| `subtitles.py` | 字幕选择规则、多格式解析（srt/vtt/json3/ttml/srv）、分段 |
-| `asr.py` | faster-whisper 封装，自动 GPU/CPU，中文标点提示词 |
+| `subtitles.py` | 字幕选择规则、多格式解析（srt/vtt/json3/ttml/srv）、逐词重新断句、分段 |
+| `asr.py` | faster-whisper 封装，自动 GPU/CPU，中文标点提示词，标题热词 |
+| `douyin_browser.py` | 抖音：用本机浏览器打开视频页，读取页面加载的作品数据 |
+| `cookies.py` | cookie 文件/文件夹合并 |
 | `notes.py` | 笔记和索引生成 |
 | `textconv.py` | OpenCC 简繁转换 |
 | `config.py` / `cli.py` | 配置与命令行 |

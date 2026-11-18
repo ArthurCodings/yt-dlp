@@ -36,6 +36,8 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument('--max', dest='max_items', type=int, help='合集/频道最多处理多少条')
     g.add_argument('--keep-audio', action='store_true', default=None, help='text 模式下保留转写用的音频')
     g.add_argument('--force', action='store_true', help='已经采集过的也重新采集')
+    g.add_argument('--show-browser', dest='browser_headless', action='store_false', default=None,
+                   help='抖音：显示浏览器窗口（遇到验证码时在窗口里手动完成）')
     _add_common(g)
 
     t = sub.add_parser('transcribe', help='把本地音视频文件转成字幕和文字')
@@ -60,7 +62,7 @@ def _read_urls(args) -> list[str]:
 def cmd_get(args) -> int:
     overrides = {k: getattr(args, k, None) for k in (
         'mode', 'asr', 'output_dir', 'cookies_from_browser', 'cookies', 'proxy', 'max_items',
-        'keep_audio', 'script', 'model', 'device', 'language')}
+        'keep_audio', 'script', 'model', 'device', 'language', 'browser_headless')}
     cfg, used = load_config(args.config, overrides)
     urls = _read_urls(args)
     if not urls:
@@ -128,6 +130,11 @@ def cmd_doctor(args) -> int:
         print(f'{"✓" if cuda_available() else "·"} CUDA：{"可用，语音识别将使用显卡" if cuda_available() else "不可用，将使用 CPU"}')
     except ImportError:
         print('· 未安装 faster-whisper（没有平台字幕时无法语音识别）')
+    try:
+        import playwright  # noqa: F401
+        print('✓ 浏览器组件 playwright：已安装（抖音会用本机 Chrome/Edge 打开页面）')
+    except ImportError:
+        print('· 未安装 playwright（抖音无法采集）：pip install -e "creatorkit[browser]"')
     try:
         cfg, used = load_config(args.config)
         print(f'✓ 配置：{used or "内置默认值"}')

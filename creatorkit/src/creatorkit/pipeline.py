@@ -16,6 +16,7 @@ from yt_dlp.utils import DownloadError
 from .asr import Transcriber
 from .config import Config
 from .cookies import resolve_cookiefile
+from .douyin_browser import BrowserFetchError, BrowserUnavailable, extract_video_id, fetch_aweme_detail, is_douyin_url
 from .notes import add_to_index, find_in_index, render_note
 from .subtitles import Segment, choose_subtitle, format_clock, parse_subtitle_file, to_plain_text, to_srt
 from .textconv import convert_segments
@@ -128,6 +129,8 @@ class Pipeline:
     def process_url(self, url: str) -> list[ItemResult]:
         params = self._probe_params()
         self.log(f'\n▶ 解析 {url}')
+        if self.cfg.douyin_browser and is_douyin_url(url) and _playwright_installed():
+            return [self._process_douyin(url)]
         try:
             with YoutubeDL(params) as probe:
                 info = probe.extract_info(url, download=False)
@@ -147,7 +150,43 @@ class Pipeline:
             self.log(f'  ✗ 失败：{msg}')
             return [ItemResult(url, False, error=msg)]
 
+    # ------------------------------------------------------------ 抖音（浏览器）
+
+    def _process_douyin(self, url: str) -> ItemResult:
+        try:
+            with YoutubeDL(self._probe_params()) as probe:
+                video_id = extract_video_id(url)
+                if not video_id:  # v.douyin.com 短链接：跟随跳转拿到作品 ID
+                    with probe.urlopen(url) as resp:
+                        video_id = extract_video_id(resp.url)
+                if not video_id:
+                    raise DownloadError('无法从链接中识别抖音作品 ID（目前支持视频作品）')
+                if skipped := self._skip_existing(f'Douyin:{video_id}', url):
+                    return skipped
+                detail = fetch_aweme_detail(video_id, probe.params.get('cookiefile'),
+                                            headless=self.cfg.browser_headless, log=self.log)
+                ie = probe.get_info_extractor('Douyin')
+                parsed = ie._parse_aweme_video_app(detail)
+                # 抖音 CDN 校验 Referer，不带会 403
+                for fmt in parsed.get('formats') or []:
+                    fmt.setdefault('http_headers', {})['Referer'] = 'https://www.douyin.com/'
+                probe.add_default_extra_info(parsed, ie, f'https://www.douyin.com/video/{video_id}')
+                info = probe.process_ie_result(parsed, download=False)
+                return self._process_video(probe, info, url)
+        except (DownloadError, BrowserUnavailable, BrowserFetchError) as e:
+            msg = _explain_error(str(e))
+            self.log(f'  ✗ 失败：{msg}')
+            return ItemResult(url, False, error=msg)
+
     # ------------------------------------------------------------ 单条视频
+
+    def _skip_existing(self, key: str, url: str, title: str | None = None) -> ItemResult | None:
+        existing = find_in_index(self.root, key)
+        if existing and not self.force and (self.root / existing['folder'] / 'note.md').is_file():
+            self.log(f'  已采集过，跳过（加 --force 可重新采集）：{existing["folder"]}')
+            return ItemResult(url, True, self.root / existing['folder'], title or existing.get('title'),
+                              existing.get('source'), skipped=True)
+        return None
 
     def _process_video(self, probe: YoutubeDL, info: dict, url: str) -> ItemResult:
         cfg = self.cfg
@@ -155,10 +194,8 @@ class Pipeline:
         title = info.get('title') or info.get('id')
         self.log(f'  标题：{title}')
 
-        existing = find_in_index(self.root, key)
-        if existing and not self.force and (self.root / existing['folder'] / 'note.md').is_file():
-            self.log(f'  已采集过，跳过（加 --force 可重新采集）：{existing["folder"]}')
-            return ItemResult(url, True, self.root / existing['folder'], title, existing.get('source'), skipped=True)
+        if skipped := self._skip_existing(key, url, title):
+            return skipped
 
         folder = Path(probe.prepare_filename(info, outtmpl=str(self.root / FOLDER_TMPL)))
         folder.mkdir(parents=True, exist_ok=True)
@@ -201,7 +238,8 @@ class Pipeline:
                 downloaded_for_asr = True
             if media_file is None:
                 raise DownloadError('没有下载到可供识别的音视频文件')
-            segments, lang = self._get_transcriber().transcribe(media_file, cfg.language, cfg.script)
+            segments, lang = self._get_transcriber().transcribe(
+                media_file, cfg.language, cfg.script, context=asr_context(info))
             source = f'语音识别（{cfg.model}，{lang}）'
 
         segments = convert_segments(segments, cfg.script)
@@ -213,8 +251,10 @@ class Pipeline:
             (folder / 'transcript.txt').write_text(to_plain_text(segments), encoding='utf-8')
             files['字幕'] = 'transcript.srt'
             files['全文'] = 'transcript.txt'
-        if (folder / 'cover.jpg').exists():
-            files['封面'] = 'cover.jpg'
+        cover = next((f for f in sorted(folder.glob('cover.*'))
+                      if f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')), None)
+        if cover:
+            files['封面'] = cover.name
         (folder / 'note.md').write_text(render_note(info, segments, source, files), encoding='utf-8')
 
         if downloaded_for_asr and cfg.mode == 'text' and not cfg.keep_audio and media_file and media_file.exists():
@@ -250,6 +290,19 @@ class Pipeline:
         return self._transcriber
 
 
+def asr_context(info: dict) -> str:
+    """把标题和标签整理成语音识别提示词（去掉 # 和多余空白）。"""
+    parts = [info.get('title') or '']
+    parts += [t for t in (info.get('tags') or [])[:10] if t not in parts[0]]
+    text = ' '.join(parts).replace('#', ' ')
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def _playwright_installed() -> bool:
+    import importlib.util
+    return importlib.util.find_spec('playwright') is not None
+
+
 def _find_media(folder: Path, base_name: str) -> Path | None:
     for f in sorted(folder.glob(f'{base_name}.*')):
         if f.suffix.lstrip('.').lower() in MEDIA_EXTS and f.stem == base_name:
@@ -261,7 +314,8 @@ def _explain_error(msg: str) -> str:
     msg = re.sub(r'^ERROR:\s*', '', msg)
     low = msg.lower()
     if 'fresh cookies' in low or 's_v_web_id' in low:
-        return msg + '\n    提示：抖音需要登录 cookie。请在配置里设置 cookies_from_browser = "firefox"，或导出 cookies.txt 后设置 cookies。'
+        return msg + ('\n    提示：抖音需要 cookie 和浏览器组件。请导出 douyin.txt 放进 cookies 文件夹，'
+                      '并安装：pip install -e "creatorkit[browser]"')
     if 'could not copy chrome cookie database' in low or 'failed to decrypt' in low or 'app-bound' in low:
         return msg + '\n    提示：新版 Chrome/Edge 的 cookie 加密无法直接读取。建议用 Firefox 登录后设置 cookies_from_browser = "firefox"，或用浏览器扩展导出 cookies.txt。'
     if 'sign in to confirm' in low or 'login required' in low or 'requires login' in low:

@@ -39,6 +39,9 @@ class Config:
     cookies_from_browser: str | None = None  # 如 firefox / chrome / edge
     cookies: str | None = None               # Netscape 格式 cookies.txt 路径
     proxy: str | None = None                 # 如 http://127.0.0.1:7897
+    # 抖音用真实浏览器（本机 Chrome/Edge）打开页面获取作品数据
+    douyin_browser: bool = True
+    browser_headless: bool = True            # False 显示浏览器窗口（遇到验证码时手动完成）
     # 播放列表/频道一次最多处理多少条
     max_items: int | None = None
 

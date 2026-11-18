@@ -15,10 +15,10 @@ $py = Join-Path $repo '.venv\Scripts\python.exe'
 $extra = if ($Cpu) { 'asr' } else { 'cuda' }
 
 if ($uv) {
-    uv pip install --python $py -e ".[default,curl-cffi,deno]" -e "./creatorkit[$extra]"
+    uv pip install --python $py -e ".[default,curl-cffi,deno]" -e "./creatorkit[$extra,browser]"
 } else {
     & $py -m pip install -U pip
-    & $py -m pip install -e ".[default,curl-cffi,deno]" -e "./creatorkit[$extra]"
+    & $py -m pip install -e ".[default,curl-cffi,deno]" -e "./creatorkit[$extra,browser]"
 }
 
 if (-not (Test-Path "$env:USERPROFILE\.creatorkit.toml")) {

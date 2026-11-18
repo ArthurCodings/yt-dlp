@@ -15,6 +15,7 @@ class Segment:
     start: float
     end: float
     text: str
+    cont: bool = False  # 这一句在词中间被硬断开，下一句是它的延续
 
 
 @dataclasses.dataclass
@@ -219,6 +220,62 @@ def merge_duplicates(segments: list[Segment]) -> list[Segment]:
     return out
 
 
+# ---------------------------------------------------------------- 语音识别结果重新断句
+
+_STRONG = tuple('。！？!?….')
+_WEAK = tuple('，,、；;：:')
+
+
+def _visual_len(text: str) -> float:
+    """字幕长度：中日韩字符算 1，其他字符算 0.5。"""
+    return sum(1 if _CJK.match(ch) else 0.5 for ch in text)
+
+
+def regroup_words(words: list[tuple[float, float, str]], max_len: float = 22, max_dur: float = 7.0) -> list[Segment]:
+    """把逐词时间戳重新组合成适合做字幕的短句。
+
+    句末标点必断；逗号处够长就断；超长/超时时先退回最近的逗号断开，
+    没有逗号才硬断，并标记 cont=True（合并全文时不在断点加逗号）。
+    """
+    def emit(ws, cont=False):
+        segments.append(Segment(ws[0][0], ws[-1][1], ''.join(w[2] for w in ws).strip(), cont))
+
+    def boundary_after(i: int) -> bool:
+        """buf[i] 之后是否是自然停顿：标点，或中文之间的空格（Whisper 常用空格代替逗号）。"""
+        if buf[i][2].strip().endswith(_STRONG + _WEAK):
+            return True
+        nxt = buf[i + 1][2] if i + 1 < len(buf) else ''
+        return (nxt[:1].isspace() and bool(_CJK.match(buf[i][2].strip()[-1:] or ' '))
+                and bool(_CJK.match(nxt.strip()[:1] or ' ')))
+
+    segments: list[Segment] = []
+    buf: list[tuple[float, float, str]] = []
+    for word in words:
+        if not word[2].strip():
+            continue
+        buf.append(word)
+        if len(buf) > 1 and boundary_after(len(buf) - 2) \
+                and _visual_len(''.join(w[2] for w in buf[:-1]).strip()) >= max_len * 0.5:
+            emit(buf[:-1])  # 中文空格停顿处，前面已经够长：在空格处断开
+            buf = buf[-1:]
+        text = ''.join(w[2] for w in buf).strip()
+        length = _visual_len(text)
+        if text.endswith(_STRONG) or (text.endswith(_WEAK) and length >= max_len * 0.5):
+            emit(buf)
+            buf = []
+        elif length >= max_len or buf[-1][1] - buf[0][0] >= max_dur:
+            cut = next((i for i in range(len(buf) - 2, 0, -1) if boundary_after(i)), None)
+            if cut is not None:
+                emit(buf[:cut + 1])
+                buf = buf[cut + 1:]
+            else:
+                emit(buf, cont=True)
+                buf = []
+    if buf:
+        emit(buf)
+    return segments
+
+
 # ---------------------------------------------------------------- 输出
 
 def format_srt_time(t: float) -> str:
@@ -247,9 +304,11 @@ _END_PUNCT = tuple('。！？!?…」』”"')
 _ANY_PUNCT = _END_PUNCT + tuple('，,、；;：:.')
 
 
-def _join(a: str, b: str) -> str:
+def _join(a: str, b: str, cont: bool = False) -> str:
     if not a:
         return b
+    if cont:  # 上一句是在词中间被硬断的：直接接上
+        return a + b if _CJK.search(a[-1]) or _CJK.search(b[0]) else a + ' ' + b
     if _CJK.search(a[-1]) and _CJK.search(b[0]):
         return a + b if a.endswith(_ANY_PUNCT) else a + '，' + b
     if a.endswith(('，', '。', '！', '？', '、', '；', '：')):
@@ -260,12 +319,12 @@ def _join(a: str, b: str) -> str:
 def to_paragraphs(segments: list[Segment], gap: float = 2.0, max_chars: int = 220) -> list[tuple[float, str]]:
     """把零碎字幕行合并成段落，返回 [(段落开始时间, 文本)]。"""
     paragraphs: list[tuple[float, str]] = []
-    start, buf, prev_end = None, '', None
+    start, buf, prev_end, prev_cont = None, '', None, False
     for seg in segments:
         text = seg.text.strip()
         if not text:
             continue
-        brk = buf and (
+        brk = buf and not prev_cont and (
             (prev_end is not None and seg.start - prev_end > gap)
             or (len(buf) >= max_chars and buf.endswith(_END_PUNCT))
             or len(buf) >= max_chars * 2)
@@ -274,8 +333,8 @@ def to_paragraphs(segments: list[Segment], gap: float = 2.0, max_chars: int = 22
             start, buf = None, ''
         if start is None:
             start = seg.start
-        buf = _join(buf, text)
-        prev_end = seg.end
+        buf = _join(buf, text, prev_cont)
+        prev_end, prev_cont = seg.end, seg.cont
     if buf:
         paragraphs.append((start, _finish(buf)))
     return paragraphs
