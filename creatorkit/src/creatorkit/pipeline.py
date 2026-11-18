@@ -15,6 +15,7 @@ from yt_dlp.utils import DownloadError
 
 from .asr import Transcriber
 from .config import Config
+from .cookies import resolve_cookiefile
 from .notes import add_to_index, find_in_index, render_note
 from .subtitles import Segment, choose_subtitle, format_clock, parse_subtitle_file, to_plain_text, to_srt
 from .textconv import convert_segments
@@ -48,6 +49,7 @@ class Pipeline:
         self.force = force
         self.root = Path(cfg.output_dir).expanduser().resolve()
         self._transcriber: Transcriber | None = None
+        self._cookiefile: str | None = None
 
     # ------------------------------------------------------------ yt-dlp 参数
 
@@ -62,7 +64,9 @@ class Pipeline:
             'noprogress': False,
         }
         if self.cfg.cookies:
-            p['cookiefile'] = str(Path(self.cfg.cookies).expanduser())
+            if self._cookiefile is None:
+                self._cookiefile = resolve_cookiefile(self.cfg.cookies)
+            p['cookiefile'] = self._cookiefile
         if self.cfg.cookies_from_browser:
             p['cookiesfrombrowser'] = parse_browser_spec(self.cfg.cookies_from_browser)
         if self.cfg.proxy:

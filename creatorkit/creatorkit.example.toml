@@ -30,8 +30,9 @@ write_thumbnail = true   # 保存封面 cover.jpg
 
 # ---- 登录与网络 ----
 # 抖音必须带 cookie；B 站登录后能拿到更高画质和 CC 字幕。
-# 新版 Chrome/Edge 的 cookie 无法直接读取，推荐用浏览器扩展导出 cookies.txt：
-# cookies = "E:/CreatorKit/cookies.txt"
+# 新版 Chrome/Edge 的 cookie 无法直接读取，推荐用浏览器扩展导出（见 README）。
+# 可以是单个 cookies.txt，也可以是文件夹（每个平台一个 .txt，自动合并）：
+# cookies = "E:/CreatorKit/cookies"
 # 用 Firefox 登录的话可以直接读取：
 # cookies_from_browser = "firefox"
 

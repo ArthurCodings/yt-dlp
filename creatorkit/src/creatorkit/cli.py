@@ -133,6 +133,9 @@ def cmd_doctor(args) -> int:
         print(f'✓ 配置：{used or "内置默认值"}')
         for k, v in vars(cfg).items():
             print(f'    {k} = {v!r}')
+        if cfg.cookies:
+            from .cookies import summarize
+            print('\n'.join(summarize(cfg.cookies)))
     except Exception as e:
         print(f'✗ 配置错误：{e}')
         ok = False

@@ -38,7 +38,7 @@ ck get "https://www.youtube.com/watch?v=xxxx"
 ck get -m audio "https://www.bilibili.com/video/BVxxxx"
 
 # 只要文字：有字幕直接拿字幕，没有就临时下载音频识别完再删掉
-ck get -m text "https://www.douyin.com/video/xxxx" --cookies E:\CreatorKit\cookies.txt
+ck get -m text "https://www.douyin.com/video/xxxx"
 
 # 一次多个链接 / 从文件读取（每行一个，# 开头是注释）
 ck get URL1 URL2 URL3
@@ -88,15 +88,23 @@ ck transcribe 录音.m4a 采访.mp4
 
 ### 提供 cookie
 
-新版 Chrome / Edge（127+）在 Windows 上对 cookie 做了应用绑定加密，yt-dlp 无法直接读取，所以推荐：
+推荐做法：每个平台导出一个 cookie 文件，全部放进同一个文件夹，配置里写这个文件夹：
 
-1. 在 Chrome/Edge 装扩展 **Get cookies.txt LOCALLY**（开源，只在本地导出）。
-2. 打开 douyin.com（需要的话登录），点扩展 → Export，保存为 `E:\CreatorKit\cookies.txt`。
-3. 配置文件写 `cookies = "E:/CreatorKit/cookies.txt"`，或命令行加 `--cookies 路径`。
+```toml
+cookies = "E:/CreatorKit/cookies"   # 里面放 douyin.txt、bilibili.txt ……
+```
 
-cookie 过期后（通常几天到几周）重新导出一次即可。用 Firefox 的话可以直接 `cookies_from_browser = "firefox"`。
+新版 Chrome / Edge（127+）在 Windows 上对 cookie 做了应用绑定加密，yt-dlp 无法直接读取，所以用扩展导出：
 
-> cookie 等同于登录凭证，请勿分享 `cookies.txt`。仓库的 `.gitignore` 已排除素材库目录，但 cookie 文件请放在仓库外。
+1. Chrome 打开扩展 **Get cookies.txt LOCALLY** 的商店页并安装（开源，只在本地导出，不上传）：
+   <https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc>
+2. 打开要用的网站（抖音 douyin.com / B 站 bilibili.com），需要的话先登录。
+3. 点浏览器右上角拼图图标 → Get cookies.txt LOCALLY → **Export**，把下载的文件改名为 `douyin.txt` / `bilibili.txt`，放进上面的文件夹。
+4. 运行 `ck doctor`，最后几行会列出每个 cookie 文件包含的网站，确认无误即可。
+
+cookie 过期后（抖音通常几天到几周，B 站约半年）重新导出覆盖即可。用 Firefox 的话可以直接 `cookies_from_browser = "firefox"`。
+
+> cookie 等同于登录凭证，请勿分享这些文件，也不要放进仓库目录。
 
 ## 配置
 
