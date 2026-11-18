@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "creatorkit"
+version = "0.1.0"
+description = "基于 yt-dlp 的素材采集工具：下载视频/音频，获取字幕或语音转写，生成文案笔记"
+requires-python = ">=3.11"
+license = "Unlicense"
+dependencies = [
+    "yt-dlp[default,curl-cffi,deno]",
+    "opencc-python-reimplemented>=0.1.7",
+]
+
+[project.optional-dependencies]
+asr = [
+    "faster-whisper>=1.1.0",
+]
+# Windows/Linux + NVIDIA 显卡：装上后 faster-whisper 可直接用 GPU
+cuda = [
+    "faster-whisper>=1.1.0",
+    "nvidia-cublas-cu12",
+    "nvidia-cudnn-cu12==9.*",
+]
+
+[project.scripts]
+ck = "creatorkit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/creatorkit"]
