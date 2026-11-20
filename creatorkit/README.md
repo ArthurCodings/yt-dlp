@@ -67,6 +67,9 @@ ck get --asr always URL
 
 # 本地文件转文字（生成同名 .srt / .txt / .md）
 ck transcribe 录音.m4a 采访.mp4
+
+# 笔记模板更新后：用已保存的数据重新生成全部笔记（不重新下载，保留“我的笔记”里写的内容）
+ck rebuild
 ```
 
 ## 输出结构
@@ -77,9 +80,10 @@ ck transcribe 录音.m4a 采访.mp4
 ├── library.jsonl               ← 同上（机器可读，用于去重）
 ├── Youtube/
 │   └── 2026-11-01 视频标题 [视频ID]/
-│       ├── note.md             ← 笔记：元数据 + 简介 + 标签 + 带时间戳的全文 + “我的笔记”
+│       ├── note.md             ← 笔记：属性区 + 信息卡片 + 封面 + 简介/标签 + 分节全文 + “我的笔记”
 │       ├── transcript.txt      ← 纯文本全文（按停顿分段，适合直接复制改写）
 │       ├── transcript.srt      ← 字幕（可导入剪映 / Premiere）
+│       ├── transcript.json     ← 逐句数据（重新生成笔记用）
 │       ├── video.mp4           ← 优先 H.264 + AAC，剪辑软件兼容性最好
 │       ├── cover.jpg           ← 封面
 │       ├── source.zh-Hans.vtt  ← 平台原始字幕（如果有）
@@ -87,6 +91,15 @@ ck transcribe 录音.m4a 采访.mp4
 ├── BiliBili/ ...
 └── Douyin/ ...
 ```
+
+## 笔记格式
+
+`note.md` 用 Typora / Obsidian 打开效果最好：
+
+- 开头的 `---` 属性区记录标题、平台、作者、日期、时长、标签、链接，Obsidian 里可以按这些字段筛选。
+- 抖音 / TikTok 等没有标题的平台，取文案第一句（去掉 #话题）作标题；文案里的话题提取成标签。
+- 全文有章节（YouTube / B 站作者分了章节）就按章节分节，否则每约 3 分钟一节，小标题带时间，大纲里可跳转。
+- “我的笔记”预设 金句 / 可以借鉴的点 / 选题灵感。重新采集（`--force`）或 `ck rebuild` 时会保留你已经写的内容。
 
 ## 各平台注意事项
 

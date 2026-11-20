@@ -17,8 +17,10 @@ from .asr import Transcriber
 from .config import Config
 from .cookies import resolve_cookiefile
 from .douyin_browser import BrowserFetchError, BrowserUnavailable, extract_video_id, fetch_aweme_detail, is_douyin_url
-from .notes import add_to_index, find_in_index, render_note
-from .subtitles import Segment, choose_subtitle, format_clock, parse_subtitle_file, to_plain_text, to_srt
+from .notes import add_to_index, display_title, extract_my_notes, find_in_index, render_note
+from .subtitles import (
+    Segment, choose_subtitle, format_clock, parse_subtitle_file, save_segments, to_plain_text, to_srt,
+)
 from .textconv import convert_segments
 
 FOLDER_TMPL = '%(extractor_key)s/%(upload_date>%Y-%m-%d|0000-00-00)s %(title).70B [%(id)s]'
@@ -249,13 +251,16 @@ class Pipeline:
         if segments:
             (folder / 'transcript.srt').write_text(to_srt(segments), encoding='utf-8-sig')
             (folder / 'transcript.txt').write_text(to_plain_text(segments), encoding='utf-8')
+            save_segments(segments, folder / 'transcript.json')
             files['字幕'] = 'transcript.srt'
             files['全文'] = 'transcript.txt'
         cover = next((f for f in sorted(folder.glob('cover.*'))
                       if f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')), None)
         if cover:
             files['封面'] = cover.name
-        (folder / 'note.md').write_text(render_note(info, segments, source, files), encoding='utf-8')
+        note_path = folder / 'note.md'
+        my_notes = extract_my_notes(note_path.read_text(encoding='utf-8')) if note_path.is_file() else None
+        note_path.write_text(render_note(info, segments, source, files, my_notes), encoding='utf-8')
 
         if downloaded_for_asr and cfg.mode == 'text' and not cfg.keep_audio and media_file and media_file.exists():
             media_file.unlink()
@@ -263,7 +268,7 @@ class Pipeline:
         add_to_index(self.root, {
             'key': key,
             'folder': folder.relative_to(self.root).as_posix(),
-            'title': title,
+            'title': display_title(info),
             'uploader': info.get('uploader') or info.get('channel') or '',
             'platform': info.get('extractor_key'),
             'url': info.get('webpage_url') or url,

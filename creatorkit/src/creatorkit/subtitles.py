@@ -316,8 +316,11 @@ def _join(a: str, b: str, cont: bool = False) -> str:
     return a + ' ' + b
 
 
-def to_paragraphs(segments: list[Segment], gap: float = 2.0, max_chars: int = 220) -> list[tuple[float, str]]:
-    """把零碎字幕行合并成段落，返回 [(段落开始时间, 文本)]。"""
+def to_paragraphs(segments: list[Segment], gap: float = 2.0, max_chars: int = 150) -> list[tuple[float, str]]:
+    """把零碎字幕行合并成段落，返回 [(段落开始时间, 文本)]。
+
+    分段时机：停顿超过 gap 秒；够长（max_chars）且在句末；明显过长（1.4 倍）时在任意停顿处。
+    """
     paragraphs: list[tuple[float, str]] = []
     start, buf, prev_end, prev_cont = None, '', None, False
     for seg in segments:
@@ -327,7 +330,7 @@ def to_paragraphs(segments: list[Segment], gap: float = 2.0, max_chars: int = 22
         brk = buf and not prev_cont and (
             (prev_end is not None and seg.start - prev_end > gap)
             or (len(buf) >= max_chars and buf.endswith(_END_PUNCT))
-            or len(buf) >= max_chars * 2)
+            or len(buf) >= max_chars * 1.4)
         if brk:
             paragraphs.append((start, _finish(buf)))
             start, buf = None, ''
@@ -345,6 +348,16 @@ def _finish(text: str) -> str:
     if text and _CJK.search(text[-1]) and not text.endswith(_END_PUNCT):
         text += '。'
     return text
+
+
+def save_segments(segments: list[Segment], path: Path) -> None:
+    """完整保存逐句数据（含 cont 标记），供重新生成笔记时使用。"""
+    path.write_text(json.dumps([dataclasses.asdict(s) for s in segments], ensure_ascii=False, indent=0),
+                    encoding='utf-8')
+
+
+def load_segments(path: Path) -> list[Segment]:
+    return [Segment(**d) for d in json.loads(path.read_text(encoding='utf-8'))]
 
 
 def to_plain_text(segments: list[Segment]) -> str:

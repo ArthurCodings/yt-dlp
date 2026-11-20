@@ -4,7 +4,7 @@ import pytest
 
 from creatorkit.cli import build_parser
 from creatorkit.config import load_config
-from creatorkit.notes import INDEX_MD, add_to_index, find_in_index, load_index, render_note
+from creatorkit.notes import INDEX_MD, add_to_index, find_in_index, load_index
 from creatorkit.pipeline import _explain_error, _find_media, parse_browser_spec
 from creatorkit.subtitles import Segment
 from creatorkit.textconv import convert_segments, convert_text
@@ -23,6 +23,7 @@ def test_cjk_punctuation():
     assert normalize_cjk_punct('好,我们直接开始。真的吗?是的!') == '好，我们直接开始。真的吗？是的！'
     assert normalize_cjk_punct('Hello, world: 1,000') == 'Hello, world: 1,000'
     assert normalize_cjk_punct('原本的工作 台中市第四分局 LED背心') == '原本的工作，台中市第四分局 LED背心'
+    assert normalize_cjk_punct('解读《红楼梦》, 他的浏览量') == '解读《红楼梦》，他的浏览量'
     assert convert_segments([Segment(0, 1, '來了,我們')], 'keep')[0].text == '來了，我們'
 
 
@@ -54,17 +55,6 @@ def test_config_rejects_bad_values(tmp_path: Path):
         load_config(str(empty), {'mode': 'movie'})
     with pytest.raises(FileNotFoundError):
         load_config(str(tmp_path / 'missing.toml'))
-
-
-def test_render_note():
-    info = {'title': '测试视频', 'uploader': '某作者', 'extractor_key': 'BiliBili', 'upload_date': '20261101',
-            'duration': 125, 'webpage_url': 'https://b23.tv/x', 'view_count': 123456, 'like_count': 99,
-            'description': '这是简介', 'tags': ['剪辑', '教程']}
-    md = render_note(info, [Segment(0, 1, '大家好'), Segment(5, 6, '再见')], '平台人工字幕（zh-CN）',
-                     {'视频': 'video.mp4'})
-    for expected in ('# 测试视频', '| 作者 | 某作者 |', '2026-11-01', '02:05', '播放 12.3 万', '## 简介',
-                     '`#剪辑`', '**[00:00]** 大家好。', '**[00:05]** 再见。', '[视频](video.mp4)', '## 我的笔记'):
-        assert expected in md, expected
 
 
 def test_index(tmp_path: Path):

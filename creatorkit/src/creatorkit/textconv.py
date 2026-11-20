@@ -31,12 +31,13 @@ def convert_text(text: str, script: str) -> str:
 
 
 _CJK = r'[㐀-鿿豈-﫿]'
-_HALF_TO_FULL = {',': '，', '?': '？', '!': '！', ':': '：', ';': '；'}
+_CJK_OR_CLOSE = r'[㐀-鿿豈-﫿》」』）】〉”’]'
+_HALF_TO_FULL ={',': '，', '?': '？', '!': '！', ':': '：', ';': '；'}
 
 
 def normalize_cjk_punct(text: str) -> str:
     """中文语境里的半角标点 → 全角（“好,我们” → “好，我们”），不影响英文和数字。"""
-    text = re.sub(rf'(?<={_CJK})([,?!:;])\s*', lambda m: _HALF_TO_FULL[m.group(1)], text)
+    text = re.sub(rf'(?<={_CJK_OR_CLOSE})([,?!:;])\s*', lambda m: _HALF_TO_FULL[m.group(1)], text)
     # 中文之间的空格是 Whisper 用来表示停顿的，换成逗号
     return re.sub(rf'(?<={_CJK})\s+(?={_CJK})', '，', text)
 

@@ -44,6 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument('files', nargs='+', help='本地音视频文件')
     _add_common(t)
 
+    r = sub.add_parser('rebuild', help='用已保存的数据重新生成所有笔记和索引（不重新下载；保留“我的笔记”）')
+    r.add_argument('-c', '--config', help='配置文件路径')
+    r.add_argument('-o', '--output', dest='output_dir', help='素材库目录')
+
     d = sub.add_parser('doctor', help='检查运行环境（ffmpeg、显卡、配置）')
     d.add_argument('-c', '--config', help='配置文件路径')
     return parser
@@ -109,6 +113,16 @@ def cmd_transcribe(args) -> int:
     return code
 
 
+def cmd_rebuild(args) -> int:
+    cfg, _ = load_config(args.config, {'output_dir': args.output_dir})
+    from .rebuild import rebuild_library
+    root = Path(cfg.output_dir).expanduser()
+    print(f'重新生成笔记：{root}')
+    done, missing = rebuild_library(root)
+    print(f'\n完成：{done} 条已更新，{missing} 条跳过')
+    return 0
+
+
 def cmd_doctor(args) -> int:
     ok = True
     print(f'creatorkit {__version__} · Python {sys.version.split()[0]}')
@@ -164,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     args = build_parser().parse_args(argv)
     try:
-        return {'get': cmd_get, 'transcribe': cmd_transcribe, 'doctor': cmd_doctor}[args.command](args)
+        return {'get': cmd_get, 'transcribe': cmd_transcribe, 'rebuild': cmd_rebuild, 'doctor': cmd_doctor}[args.command](args)
     except (ValueError, FileNotFoundError) as e:
         print(f'错误：{e}', file=sys.stderr)
         return 2
