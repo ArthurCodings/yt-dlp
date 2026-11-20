@@ -153,6 +153,15 @@ def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, 'reconfigure'):
             stream.reconfigure(encoding='utf-8', errors='replace')
+    if not (sys.argv[1:] if argv is None else argv):  # 不带参数（比如双击启动）：进入交互菜单
+        from .menu import run_menu
+        try:
+            return run_menu()
+        except KeyboardInterrupt:
+            return 130
+        except (ValueError, FileNotFoundError) as e:
+            print(f'错误：{e}', file=sys.stderr)
+            return 2
     args = build_parser().parse_args(argv)
     try:
         return {'get': cmd_get, 'transcribe': cmd_transcribe, 'doctor': cmd_doctor}[args.command](args)
